@@ -2,7 +2,7 @@ import {
 	App,
 	SuggestModal,
 	Plugin,
-	PluginSettingTab, Setting
+	PluginSettingTab, Setting, Editor, MarkdownView
 } from 'obsidian';
 
 import OpenAI from 'openai';
@@ -79,6 +79,83 @@ export default class TextMoverPlugin extends Plugin {
 	settings: TextMoverPluginSettings;
 	llm_client: OpenAI;
 
+	get_file_headings(file: any) {
+		const filecache = this.app.metadataCache.getFileCache(file)
+		let headings: Heading[] = [];
+		if (filecache && filecache.headings) {
+			headings = filecache.headings.map(headingCache => {
+				return {
+					heading: headingCache.heading,
+					level: headingCache.level,
+					position: headingCache.position
+				};
+			});
+		}
+		return headings
+	}
+
+	async sort_headings_via_llm(headings: Heading[], selection = "") {
+		console.log("inside sort_headings")
+		const heading_str = headings.map(heading => heading.heading).join(", ")
+		const prompt = "For the text below, suggest top3 classes from one of the following classes(no fluff, no explaination, no numbering just the classes): \n" +
+			"```\n " +
+			"classes:" + heading_str + "\n" +
+			"text: " + selection
+		// api post call to openai
+		const chatCompletion = await this.llm_client.chat.completions.create({
+			messages: [{role: 'user', content: prompt}],
+			model: this.settings.modelName,
+		});
+
+		// get chosen classes
+		let chosen_classses: string[] = [];
+		const llm_response = chatCompletion.choices[0].message.content
+		// alert notice the class
+		// split classes by ", " or newline
+		if (llm_response == null || llm_response.length == 0) {
+			chosen_classses = []
+		} else if (llm_response.includes("\n")) {
+			chosen_classses = llm_response.split("\n")
+		} else if (llm_response.includes(", ")) {
+			chosen_classses = llm_response.split(", ")
+		} else if (llm_response.length > 0) {
+			chosen_classses = llm_response.split(", ")
+		}
+		// strip non alphabetic characters
+		chosen_classses = chosen_classses.map((item: string) => item.trim().replace(/[^a-zA-Z /]/g, '').trim())
+		console.log(chosen_classses);
+		//sort heading by chosen_classes
+		headings.sort((a, b) => {
+			return -(chosen_classses.indexOf(a.heading) - chosen_classses.indexOf(b.heading));
+		})
+		return headings
+	}
+
+	modal_submit_callback(result: object, editor: Editor) {
+		let selection = editor.getSelection();
+		const cursorposition = editor.getCursor()
+
+		if (selection == "") {
+			// get clicked text
+			selection = editor.getLine(cursorposition.line)
+		}
+		// concatenate all headings with ,
+		// @ts-ignore
+		const source_start = {"line": cursorposition.line, "ch": 0}
+		const source_end = {"line": cursorposition.line, "ch": selection.length}
+		// @ts-ignore
+		const targetPosition = {"line": result.position.end.line + 1, "ch": 0}
+		if (source_start.line > targetPosition.line) {
+			editor.replaceRange("", source_start, source_end)
+			editor.replaceRange(`${selection}\n`, targetPosition)
+		} else {
+			editor.replaceRange(`${selection}\n`, targetPosition)
+			editor.replaceRange("", source_start, source_end)
+		}
+
+
+	}
+
 	async onload() {
 		await this.loadSettings();
 		await this.build_api()
@@ -90,79 +167,27 @@ export default class TextMoverPlugin extends Plugin {
 						.setIcon("document")
 						.onClick(async () => {
 							let selection = editor.getSelection();
-							const cursorposition = editor.getCursor()
-
 							if (selection == "") {
-								// get clicked text
-								selection = editor.getLine(cursorposition.line)
+								selection = editor.getLine(editor.getCursor().line)
 							}
-							console.log(selection)
-							// TODO: get cursor position
 
 							const file = this.app.workspace.getActiveFile()
 							// get headings from file
 							if (!file) {
 								return
 							}
-							const filecache = this.app.metadataCache.getFileCache(file)
-							let headings: Heading[] = [];
-							if (filecache && filecache.headings) {
-								headings = filecache.headings.map(headingCache => {
-									return {
-										heading: headingCache.heading,
-										level: headingCache.level,
-										position: headingCache.position
-									};
-								});
-							}
-							if (this.settings.useLLM) {
-								const heading_str = headings.map(heading => heading.heading).join(", ")
-								const prompt = "For the text below, suggest top3 classes from one of the following classes(no fluff, no explaination, no numbering just the classes): \n" +
-									"```\n " +
-									"classes:" + heading_str + "\n" +
-									"text: " + selection
-								// api post call to openai
-								const chatCompletion = await this.llm_client.chat.completions.create({
-									messages: [{role: 'user', content: prompt}],
-									model: this.settings.modelName,
-								});
 
-								// get chosen classes
-								let chosen_classses: string[] = [];
-								const llm_response = chatCompletion.choices[0].message.content
-								// alert notice the class
-								// split classes by ", " or newline
-								if (llm_response == null || llm_response.length==0){
-									chosen_classses = []
-								}
-								else if (llm_response.includes("\n")) {
-									chosen_classses = llm_response.split("\n")
-								} else if (llm_response.includes(", ")) {
-									chosen_classses = llm_response.split(", ")
-								} else if (llm_response.length > 0) {
-									chosen_classses = llm_response.split(", ")
-								}
-								// strip non alphabetic characters
-								chosen_classses = chosen_classses.map((item: string) => item.trim().replace(/[^a-zA-Z /]/g, ''))
-								console.log(chosen_classses);
-								//sort heading by chosen_classes
-								headings.sort((a, b) => {
-									return -(chosen_classses.indexOf(a.heading) - chosen_classses.indexOf(b.heading));
-								})
+							let headings = this.get_file_headings(file)
+
+							// sort headings via LLM call
+							if (this.settings.useLLM) {
+								headings = await this.sort_headings_via_llm(headings, selection)
 							}
 							const hmodal = new HeadingSuggestionModal(this.app, headings, (result) => {
-								const cursorposition = editor.getCursor()
-								// concatenate all headings with ,
-								// @ts-ignore
-								const targetPosition = {"line": result.position.end.line, "ch": result.position.end.ch}
-								// insert selection under heading								  
-								editor.replaceRange(`\n${selection}`, targetPosition)
-
-								const start = {"line": cursorposition.line, "ch": 0}
-								const end = {"line": cursorposition.line, "ch": selection.length + 1}
-								editor.replaceRange("", start, end)
-							});
-
+									this.modal_submit_callback(result, editor)
+								}
+							);
+							hmodal.setPlaceholder(selection);
 							hmodal.open()
 						});
 
@@ -170,101 +195,80 @@ export default class TextMoverPlugin extends Plugin {
 
 			}))
 
-		this.registerEvent(
-			this.app.workspace.on("editor-menu", (menu, editor, view) => {
-				menu.addItem((item) => {
-					item
-						.setTitle("Auto classify")
-						.setIcon("document")
-						.onClick(async () => {
+		// for debugging
+		// This creates an icon in the left ribbon.
+		this.addRibbonIcon('dice', 'Log training examples', (evt: MouseEvent) => {
+			const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor
+			if (editor == null) {
+				return
+			}
+			const file = this.app.workspace.getActiveFile()
+			// get headings from file
+			if (!file) {
+				return
+			}
 
-							const file = this.app.workspace.getActiveFile()
-							// get headings from file
-							if (!file) {
-								return
-							}
-							const filecache = this.app.metadataCache.getFileCache(file)
-							let headings: Heading[] = [];
-							if (filecache && filecache.headings) {
-								headings = filecache.headings.map(headingCache => {
-									return {
-										heading: headingCache.heading,
-										level: headingCache.level,
-										position: headingCache.position
-									};
-								});
-							}
-							if (typeof (headings) == "undefined" || headings == null || headings.length == 0) {
-								return
-							}
-							// @ts-ignore
-							const lastLine: number = headings.last().position.end.line
-							// generate difference array
-							const line_heading_map: number[] = Array.apply(0, Array(lastLine)).map(Number.prototype.valueOf, 0)
+			const filecache = this.app.metadataCache.getFileCache(file)
+			let headings: Heading[] = [];
+			if (filecache && filecache.headings) {
+				headings = filecache.headings.map(headingCache => {
+					return {
+						heading: headingCache.heading,
+						level: headingCache.level,
+						position: headingCache.position
+					};
+				});
+			}
+			if (typeof (headings) == "undefined" || headings == null || headings.length == 0) {
+				return
+			}
+			// @ts-ignore
+			const lastLine: number = headings.last().position.end.line
+			// generate difference array
+			const line_heading_map: number[] = Array.apply(0, Array(lastLine)).map(Number.prototype.valueOf, 0)
 
-							console.log(line_heading_map)
+			// console.log(lastLine)
+			for (let i = 1, prev_heading = 0; i < headings.length; i++) {
+				// @ts-ignore
+				line_heading_map[headings[i].position.end.line] = headings[i].position.end.line - prev_heading
+				// @ts-ignore
+				prev_heading = headings[i].position.end.line
+			}
+			// generate actual array from difference array
+			const actual_line_heading_map: number[] = []
+			for (let i = 0; i < line_heading_map.length; i++) {
+				if (i == 0) {
+					actual_line_heading_map[i] = line_heading_map[i]
+				} else {
+					actual_line_heading_map[i] = actual_line_heading_map[i - 1] + line_heading_map[i]
+				}
+			}
 
-							// console.log(lastLine)
-							for (let i = 1, prev_heading = 0; i < headings.length; i++) {
-								// @ts-ignore
-								line_heading_map[headings[i].position.end.line] = headings[i].position.end.line - prev_heading
-								// @ts-ignore
-								prev_heading = headings[i].position.end.line
-							}
-							console.log(line_heading_map)
-							// generate actual array from difference array
-							const actual_line_heading_map: number[] = []
-							for (let i = 0; i < line_heading_map.length; i++) {
-								if (i == 0) {
-									actual_line_heading_map[i] = line_heading_map[i]
-								} else {
-									actual_line_heading_map[i] = actual_line_heading_map[i - 1] + line_heading_map[i]
-								}
-							}
+			let training_instances: object[] = []
 
-							console.log(actual_line_heading_map)
-							let training_instances: object[] = []
+			actual_line_heading_map.map((ele, idx: number) => {
+				let input = editor.getLine(idx)
+				// replace numerical prefixes from input with ""
+				input = input.replace(/\d+\./g, "")
+				input = input.replace(/#+ /g, "")
 
-							actual_line_heading_map.map((ele, idx: number) => {
-								let input = editor.getLine(idx)
-								// replace numerical prefixes from input with ""
-								input = input.replace(/\d+\./g, "")
-								input = input.replace(/#+ /g, "")
+				// remove trailing whitespace
+				input = input.trim()
+				let target = editor.getLine(ele)
+				// replace preceeding # and spaces with ""
 
-								// remove trailing whitespace
-								input = input.trim()
-								let target = editor.getLine(ele)
-								// replace preceeding # and spaces with ""
-
-								target = target.replace(/#+ /g, "")
-								training_instances.push({
-									"input": input,
-									"target": target
-								})
-							})
-							// filter training examples with empty input or target
-							// @ts-ignore
-							training_instances = training_instances.filter(ele => ele.input != "" && ele.target != "" && ele.input != ele.target)
-							console.log(training_instances)
-							// for (let i = 0; i < actual_line_heading_map.length; i++) {
-							// 	const line_text = editor.getLine(i)
-							//
-							// 	if (line_text.trim() == "") {
-							// 		continue;
-							// 	}
-							// 	console.log(line_text)
-							// 	const heading_line = actual_line_heading_map[i]
-							// 	console.log(editor.getLine(heading_line))
-							// }
-
-
-							// total lines
-
-						});
-
+				target = target.replace(/#+ /g, "")
+				training_instances.push({
+					"input": input,
+					"target": target
 				})
+			})
+			// filter training examples with empty input or target
+			// @ts-ignore
+			training_instances = training_instances.filter(ele => ele.input != "" && ele.target != "" && ele.input != ele.target)
+			console.log(training_instances)
 
-			}))
+		});
 
 		this.addSettingTab(new TextMoverSettingTab(this.app, this));
 
