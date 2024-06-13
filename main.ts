@@ -2,24 +2,23 @@ import {
 	App,
 	SuggestModal,
 	Plugin,
-	PluginSettingTab, Setting, Editor, MarkdownView
+	PluginSettingTab, Setting, Editor
 } from 'obsidian';
 
 // Load wink-nlp package.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const winkNLP = require('wink-nlp');
 // Load english language model.
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const model = require('wink-eng-lite-web-model');
 // Instantiate winkNLP.
 const nlp = winkNLP(model);
 // Obtain "its" helper to extract item properties.
 const its = nlp.its;
-// Obtain "as" reducer helper to reduce a collection.
-const as = nlp.as;
 
 
 import OpenAI from 'openai';
-import {Obj} from "tern";
 
 // ===============================================================
 
@@ -40,14 +39,14 @@ function NaiveBayesianClassifier() {
 NaiveBayesianClassifier.prototype.tokenize = function (text: string) {
 	// let words = text.split(/[^A-Za-z/ ]/)
 	// words = words.filter((w) => w.length > 0)
-	let doc = nlp.readDoc(text)
+	const doc = nlp.readDoc(text)
 	// console.log(doc.tokens().out(its.type))
 	let words = doc.tokens().filter((t) => t.out(its.type) === 'word').out(its.normal);
 	// handle url
 
-	let urls = doc.tokens().filter((t) => t.out(its.type) === 'url').out(its.normal);
+	const urls = doc.tokens().filter((t) => t.out(its.type) === 'url').out(its.normal);
 	const url_stop_list = ["http", "https", "www", "com", "org", "co", "net", "gov", "edu", "uk", "au", "ca", "us", "in", "io", "info", "biz", "name", "blog", "app", "appspot", "appspot.com", "code"]
-	urls.forEach(url => {
+	urls.forEach((url: string) => {
 		let url_words = url.split(/[^A-Za-z0-9 ]/)
 		url_words = url_words.filter((w) => w.length > 0 && !url_stop_list.includes(w))
 		words = words.concat(url_words)
@@ -79,10 +78,10 @@ NaiveBayesianClassifier.prototype.addDocument = function (doc, target: string) {
 
 NaiveBayesianClassifier.prototype.train = function () {
 
-	let classprior = {}
+	const classprior = {}
 
 	// classwise words
-	let bigDoc = {}
+	const bigDoc = {}
 
 
 	this.docs.forEach(doc => {
@@ -112,7 +111,7 @@ NaiveBayesianClassifier.prototype.train = function () {
 	// loop over vocabulary
 	for (const [class_, value] of Object.entries(classprior)) {
 		// @ts-ignore
-		let class_counter = {}
+		const class_counter = {}
 		bigDoc[class_].forEach(item => {
 			class_counter[item] = (class_counter[item] || 0) + 1
 		});
@@ -134,12 +133,10 @@ NaiveBayesianClassifier.prototype.train = function () {
 }
 
 NaiveBayesianClassifier.prototype.classify = function (doc) {
-	console.log(doc)
 	let class_scores = {}
 	if (typeof (doc) == "string") {
 		doc = this.tokenize(doc)
 	}
-	console.log(doc)
 	for (const [class_, value] of Object.entries(this.logprior)) {
 		// @ts-ignore
 		class_scores[class_] = value
@@ -295,7 +292,7 @@ export default class TextMoverPlugin extends Plugin {
 	}
 
 	async sort_headings_via_bayesian(headings: Heading[], training_instances: object[], selection = "") {
-		let nbc = new NaiveBayesianClassifier()
+		const nbc = new NaiveBayesianClassifier()
 		// loop over training instances
 		for (const instance of training_instances) {
 			// @ts-ignore
@@ -403,14 +400,16 @@ export default class TextMoverPlugin extends Plugin {
 		// filter training examples with empty input or target
 		// @ts-ignore
 		// training_instances = training_instances.filter(ele => ele.input != "" && ele.target != "")
-		console.log(training_instances)
+		// console.log(training_instances)
 		return training_instances
 	}
 
 	async editorcallback() {
-		let editor = this.app.workspace.activeEditor?.editor
-		// editor = this.app.workspace.activeEditor
-		console.log("Move text to heading")
+
+		const editor = this.app.workspace.activeEditor?.editor
+		if (!editor) {
+			return
+		}
 		let selection = editor.getSelection();
 		if (selection == "") {
 			selection = editor.getLine(editor.getCursor().line)
@@ -432,7 +431,7 @@ export default class TextMoverPlugin extends Plugin {
 			headings = await this.sort_headings_via_bayesian(headings, training_instances, selection)
 		}
 
-		let hmodal = new HeadingSuggestionModal(this.app, headings, (result) => {
+		const hmodal = new HeadingSuggestionModal(this.app, headings, (result) => {
 				this.modal_submit_callback(result, editor)
 			}
 		);

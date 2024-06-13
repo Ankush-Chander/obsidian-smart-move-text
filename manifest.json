@@ -1,11 +1,11 @@
 {
 	"id": "smart-move-text-to-heading",
-	"name": "Move Text To Heading(with llm support)",
+	"name": "Smart Text Mover",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Easy way to move text to heading",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Intelligent way to move text to headings",
+	"author": "Ankush-Chander",
+	"authorUrl": "https://github.com/Ankush-Chander/obsidian-smart-move-text",
+	"fundingUrl": "https://github.com/Ankush-Chander",
 	"isDesktopOnly": false
 }
