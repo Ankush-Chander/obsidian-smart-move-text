@@ -446,11 +446,6 @@ export default class TextMoverPlugin extends Plugin {
 			{
 				"id": "move-text-to-heading",
 				"name": "Move text to heading",
-				checkCallback: (checking: boolean) => {
-					if (checking) {
-						return this.app.workspace.getActiveFile() != null
-					}
-				},
 				editorCallback: (editor: Editor) => {
 					// get activeEditor
 					this.editorcallback()
@@ -533,39 +528,7 @@ class TextMoverSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
-		containerEl.createEl("h2", {text: "Settings for my TextMover plugin."});
-		const api_key_setting = new Setting(containerEl).setName("OpenAI API Key").addText((text) =>
-			text
-				.setPlaceholder("Enter OpenAI key here")
-				.setValue(this.plugin.settings.openAIapiKey)
-				.setDisabled(this.plugin.settings.classifier != "llm")
-				.onChange(async (value) => {
-					this.plugin.settings.openAIapiKey = value;
-					await this.plugin.saveSettings();
-					if (this.plugin.settings.classifier != "llm") {
-						this.plugin.build_api();
-					}
-				}),
-		);
-		const model_name_setting = new Setting(containerEl)
-			.setName("Model Name")
-			.setDesc("Select your model")
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOptions({
-						"gpt-3.5-turbo": "gpt-3.5-turbo",
-						"gpt-4": "gpt-4",
-					})
-					.setValue(this.plugin.settings.modelName)
-					.setDisabled(this.plugin.settings.classifier != "llm")
-					.onChange(async (value) => {
-						this.plugin.settings.modelName = value;
-						await this.plugin.saveSettings();
-						if (this.plugin.settings.classifier == "llm") {
-							this.plugin.build_api();
-						}
-					})
-			);
+		containerEl.createEl("h2", {text: "Smart Text Mover"});
 
 		new Setting(containerEl)
 			.setName("Classifier")
@@ -586,6 +549,44 @@ class TextMoverSettingTab extends PluginSettingTab {
 
 
 				}));
+
+		new Setting(containerEl).setName('LLM').setHeading();
+
+		const api_key_setting = new Setting(containerEl).setName("OpenAI API Key").addText((text) =>
+			text
+				.setPlaceholder("Enter OpenAI key here")
+				.setValue(this.plugin.settings.openAIapiKey)
+				.setDisabled(this.plugin.settings.classifier != "llm")
+				.onChange(async (value) => {
+					this.plugin.settings.openAIapiKey = value;
+					await this.plugin.saveSettings();
+					if (this.plugin.settings.classifier != "llm") {
+						this.plugin.build_api();
+					}
+				}),
+		);
+
+		const model_name_setting = new Setting(containerEl)
+			.setName("Model Name")
+			.setDesc("Select your model")
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOptions({
+						"gpt-3.5-turbo": "gpt-3.5-turbo",
+						"gpt-4": "gpt-4",
+					})
+					.setValue(this.plugin.settings.modelName)
+					.setDisabled(this.plugin.settings.classifier != "llm")
+					.onChange(async (value) => {
+						this.plugin.settings.modelName = value;
+						await this.plugin.saveSettings();
+						if (this.plugin.settings.classifier == "llm") {
+							this.plugin.build_api();
+						}
+					})
+			);
+
+
 
 	}
 }
