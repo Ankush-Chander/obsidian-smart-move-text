@@ -2,10 +2,10 @@
 	"id": "smart-move-text-to-heading",
 	"name": "Smart Text Mover",
 	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Intelligent way to move text to headings",
+	"minAppVersion": "1.6.3",
+	"description": "Intelligent way to move text to headings.",
 	"author": "Ankush-Chander",
 	"authorUrl": "https://github.com/Ankush-Chander/obsidian-smart-move-text",
-	"fundingUrl": "https://github.com/Ankush-Chander",
+//	"fundingUrl": "https://github.com/Ankush-Chander",
 	"isDesktopOnly": false
 }
