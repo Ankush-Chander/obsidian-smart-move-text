@@ -19,6 +19,7 @@ const its = nlp.its;
 
 
 import OpenAI from 'openai';
+import {ItemToken} from 'wink-nlp';
 
 // ===============================================================
 
@@ -41,10 +42,11 @@ NaiveBayesianClassifier.prototype.tokenize = function (text: string) {
 	// words = words.filter((w) => w.length > 0)
 	const doc = nlp.readDoc(text)
 	// console.log(doc.tokens().out(its.type))
-	let words = doc.tokens().filter((t) => t.out(its.type) === 'word').out(its.normal);
+
+	let words = doc.tokens().filter((t: ItemToken) => t.out(its.type) === 'word').out(its.normal);
 	// handle url
 
-	const urls = doc.tokens().filter((t) => t.out(its.type) === 'url').out(its.normal);
+	const urls = doc.tokens().filter((t: ItemToken) => t.out(its.type) === 'url').out(its.normal);
 	const url_stop_list = ["http", "https", "www", "com", "org", "co", "net", "gov", "edu", "uk", "au", "ca", "us", "in", "io", "info", "biz", "name", "blog", "app", "appspot", "appspot.com", "code"]
 	urls.forEach((url: string) => {
 		let url_words = url.split(/[^A-Za-z0-9 ]/)
@@ -54,7 +56,7 @@ NaiveBayesianClassifier.prototype.tokenize = function (text: string) {
 	return words
 }
 
-NaiveBayesianClassifier.prototype.addDocument = function (doc, target: string) {
+NaiveBayesianClassifier.prototype.addDocument = function (doc: string | string[], target: string) {
 	// add target to classes if target not in classes
 	if (!this.classes.has(target)) {
 		this.classes.add(target)
@@ -81,10 +83,10 @@ NaiveBayesianClassifier.prototype.train = function () {
 	const classprior = {}
 
 	// classwise words
-	const bigDoc = {}
+	const bigDoc: { [key: string]: string[] } = {};
 
 
-	this.docs.forEach(doc => {
+	this.docs.forEach((doc: { label: string | number; value: string[]; }) => {
 		// count documents per class
 		// @ts-ignore
 		classprior[doc.label] = classprior[doc.label] || 0
@@ -109,22 +111,21 @@ NaiveBayesianClassifier.prototype.train = function () {
 
 	// console.log(this.logprior)
 	// loop over vocabulary
-	for (const [class_, value] of Object.entries(classprior)) {
-		// @ts-ignore
-		const class_counter = {}
-		bigDoc[class_].forEach(item => {
+	for (const [class_] of Object.entries(classprior)) {
+		const class_counter: { [key: string]: number } = {}
+		bigDoc[class_].forEach((item: string) => {
 			class_counter[item] = (class_counter[item] || 0) + 1
 		});
 		let denominator = 0
-		this.vocabulary.forEach(word => {
+		// console.log(class_counter)
+		this.vocabulary.forEach((word: string) => {
 			denominator += (class_counter[word] || 0) + 1
 		})
-		// console.log(class_counter)
 		// @ts-ignore
 
 		for (const word of this.vocabulary) {
 			this.loglikelihood[word] = this.loglikelihood[word] || {}
-			let count_w_c = class_counter[word] || 0
+			const count_w_c = class_counter[word] || 0
 			// @ts-ignore
 			this.loglikelihood[word][class_] = Math.log((count_w_c + 1) / denominator);
 		}
@@ -132,8 +133,8 @@ NaiveBayesianClassifier.prototype.train = function () {
 	// console.log("training.")
 }
 
-NaiveBayesianClassifier.prototype.classify = function (doc) {
-	let class_scores = {}
+NaiveBayesianClassifier.prototype.classify = function (doc: string | string[]) {
+	const class_scores = {}
 	if (typeof (doc) == "string") {
 		doc = this.tokenize(doc)
 	}
@@ -147,8 +148,8 @@ NaiveBayesianClassifier.prototype.classify = function (doc) {
 			}
 		}
 	}
-	let classes = Object.entries(class_scores)
-	classes.sort((a, b) => b[1] - a[1])
+	const classes: [string, number][] = Object.entries(class_scores)
+	classes.sort((a: [string, number], b: [string, number]) => b[1] - a[1])
 	const sorted_classes = classes.map((item) => item[0])
 	return sorted_classes
 }
@@ -292,7 +293,7 @@ export default class TextMoverPlugin extends Plugin {
 	}
 
 	async sort_headings_via_bayesian(headings: Heading[], training_instances: object[], selection = "") {
-		const nbc = new NaiveBayesianClassifier()
+		const nbc = NaiveBayesianClassifier();
 		// loop over training instances
 		for (const instance of training_instances) {
 			// @ts-ignore
@@ -376,7 +377,7 @@ export default class TextMoverPlugin extends Plugin {
 			}
 		}
 
-		let training_instances: object[] = []
+		const training_instances: object[] = []
 
 		actual_line_heading_map.map((ele, idx: number) => {
 			let input = editor.getLine(idx)
@@ -585,7 +586,6 @@ class TextMoverSettingTab extends PluginSettingTab {
 						}
 					})
 			);
-
 
 
 	}
