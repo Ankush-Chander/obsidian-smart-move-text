@@ -5,22 +5,18 @@ import {
 	PluginSettingTab, Setting, Editor, Notice
 } from 'obsidian';
 
-// Load wink-nlp package.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const winkNLP = require('wink-nlp');
-// Load english language model.
+import OpenAI from 'openai';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const model = require('wink-eng-lite-web-model');
+// Load wink-nlp package.
+import WinkNLP from 'wink-nlp';
+import {ItemToken} from 'wink-nlp';
+// Load english language model.
+import model from 'wink-eng-lite-web-model';
 // Instantiate winkNLP.
+const winkNLP = WinkNLP;
 const nlp = winkNLP(model);
 // Obtain "its" helper to extract item properties.
 const its = nlp.its;
-
-
-import OpenAI from 'openai';
-import {ItemToken} from 'wink-nlp';
-
 // ===============================================================
 
 function NaiveBayesianClassifier() {
@@ -556,14 +552,13 @@ class TextMoverSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
-		containerEl.createEl("h2", {text: "Smart Text Mover"});
 
 		new Setting(containerEl)
 			.setName("Classifier")
-			.setDesc("Select classifier to get smart suggestion")
+			.setDesc("Select classifier to get smart suggestions")
 			.addDropdown((dropdown) => dropdown.addOptions({
-				"": "No Classifier",
-				"nbc": "Naive Bayesian Classifier",
+				"": "No classifier",
+				"nbc": "Naive bayesian classifier",
 				"llm": "LLM",
 			}).setValue(this.plugin.settings.classifier)
 				.onChange(async (value) => {
@@ -595,7 +590,7 @@ class TextMoverSettingTab extends PluginSettingTab {
 		);
 
 		const model_name_setting = new Setting(containerEl)
-			.setName("Model Name")
+			.setName("Model name")
 			.setDesc("Select your model")
 			.addDropdown((dropdown) =>
 				dropdown
