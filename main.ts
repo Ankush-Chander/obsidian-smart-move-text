@@ -2,7 +2,7 @@ import {
 	App,
 	SuggestModal,
 	Plugin,
-	PluginSettingTab, Setting, Editor
+	PluginSettingTab, Setting, Editor, Notice
 } from 'obsidian';
 
 // Load wink-nlp package.
@@ -315,18 +315,40 @@ export default class TextMoverPlugin extends Plugin {
 		return headings
 	}
 
-	modal_submit_callback(result: object, editor: Editor) {
-		let selection = editor.getSelection();
-		const cursorposition = editor.getCursor()
+	get_action_line(editor: Editor) {
+		const selection_detail = editor.listSelections()
+		// console.log(selection_detail)
+		let line_no = null
+		selection_detail.forEach(es => {
+			// loop through selected lines
+			const min = Math.min(es.anchor.line, es.head.line), max = Math.max(es.anchor.line, es.head.line)
+			for (let i = min; i <= max; i++) {
+				const line_text = editor.getLine(i).trim()
+				if (line_text == "" || line_text.startsWith("#")) {
+					// skip empty lines and headings
+					// console.log("skipping line: " + line_text)
+					continue
+				} else {
+					line_no = i
+					break
+				}
+			}
+		})
+		return line_no
+	}
 
-		if (selection == "") {
-			// get clicked text
-			selection = editor.getLine(cursorposition.line)
+	modal_submit_callback(result: object, editor: Editor) {
+		// choose first valid line as actionable line
+		// idle behaviour, act on all lines
+		const action_line = this.get_action_line(editor)
+		if (action_line == null) {
+			return
 		}
+		const selection = editor.getLine(action_line)
 		// concatenate all headings with ,
 		// @ts-ignore
-		const source_start = {"line": cursorposition.line, "ch": 0}
-		const source_end = {"line": cursorposition.line, "ch": selection.length}
+		const source_start = {"line": action_line, "ch": 0}
+		const source_end = {"line": action_line, "ch": selection.length}
 		// @ts-ignore
 		const targetPosition = {"line": result.position.end.line + 1, "ch": 0}
 		if (source_start.line > targetPosition.line) {
@@ -336,7 +358,8 @@ export default class TextMoverPlugin extends Plugin {
 			editor.replaceRange(`${selection}\n`, targetPosition)
 			editor.replaceRange("", source_start, source_end)
 		}
-
+		// @ts-ignore
+		new Notice("Moved text to heading: "+result.heading)
 
 	}
 
@@ -407,14 +430,18 @@ export default class TextMoverPlugin extends Plugin {
 
 	async editorcallback() {
 
+
 		const editor = this.app.workspace.activeEditor?.editor
 		if (!editor) {
 			return
 		}
-		let selection = editor.getSelection();
-		if (selection == "") {
-			selection = editor.getLine(editor.getCursor().line)
+
+		const action_line = this.get_action_line(editor)
+		if (action_line == null) {
+			return
 		}
+
+		const selection = editor.getLine(action_line)
 
 		const file = this.app.workspace.getActiveFile()
 		// get headings from file
