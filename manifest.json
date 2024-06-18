@@ -1,7 +1,7 @@
 {
 	"id": "smart-text-mover",
 	"name": "Smart Text Mover",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "1.6.3",
 	"description": "Intelligent way to move text in file.",
 	"author": "Ankush-Chander",
