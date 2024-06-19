@@ -17,6 +17,7 @@ const winkNLP = WinkNLP;
 const nlp = winkNLP(model);
 // Obtain "its" helper to extract item properties.
 const its = nlp.its;
+
 // ===============================================================
 
 function NaiveBayesianClassifier() {
@@ -192,10 +193,6 @@ interface Heading {
 	position: object;
 }
 
-interface BayesianStats {
-	prior: object
-	word_class_count: object
-}
 
 export class HeadingSuggestionModal extends SuggestModal<Heading> {
 	// Returns all available suggestions.
@@ -355,7 +352,7 @@ export default class TextMoverPlugin extends Plugin {
 			editor.replaceRange("", source_start, source_end)
 		}
 		// @ts-ignore
-		new Notice("Moved text to heading: "+result.heading)
+		new Notice("Moved text to heading: " + result.heading)
 
 	}
 
@@ -558,7 +555,7 @@ class TextMoverSettingTab extends PluginSettingTab {
 			.setDesc("Select classifier to get smart suggestions")
 			.addDropdown((dropdown) => dropdown.addOptions({
 				"": "No classifier",
-				"nbc": "Naive bayesian classifier",
+				"nbc": "Bayesian",
 				"llm": "LLM",
 			}).setValue(this.plugin.settings.classifier)
 				.onChange(async (value) => {
