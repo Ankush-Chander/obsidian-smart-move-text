@@ -27,16 +27,17 @@ by examining existing words distribution under different headings and then ranki
 of target location allows user to easily move/organize text in the file. Example usage includes sorting bookmarks based
 on different categories. Performs best when used with [url-namer](https://github.com/zfei/obsidian-url-namer)
 
-### Compilation
-
-1. Clone this repo.
+### For development
+#### Compilation
+1. Clone this repo inside path/to/your/dev/vault/.obsidian/plugins.
 2. npm i or yarn to install dependencies
 3. npm run build to compile, or npm run dev to start compilation in watch mode.
 
-### Installation
 
-After compiled, rename the dist directory to obsidian-url-namer and move it into the vault's plugin directory
-VaultFolder/.obsidian/plugins/.
+### Quick Installation
+Search for `smart-text-mover` in obsidian community plugins and click install.  
+or  
+follow the [installation link](https://obsidian.md/plugins?id=smart-text-mover).
 
 [//]: # (### Changelog)
 
