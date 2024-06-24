@@ -246,26 +246,15 @@ export default class TextMoverPlugin extends Plugin {
 				};
 			});
 		}
+		// sort headings alphabetically
+		headings.sort((a, b) => a.heading.localeCompare(b.heading))
 		return headings
 	}
 
-	async sort_headings_via_llm(headings: Heading[], selection = "") {
-		const heading_str = headings.map(heading => heading.heading).join(", ")
-		const prompt = "For the text below, suggest top3 classes from one of the following classes(no fluff, no explaination, no numbering just the classes): \n" +
-			"```\n " +
-			"classes:" + heading_str + "\n" +
-			"text: " + selection
-		// api post call to openai
-		const chatCompletion = await this.llm_client.chat.completions.create({
-			messages: [{role: 'user', content: prompt}],
-			model: this.settings.modelName,
-		});
-
-		// get chosen classes
-		let chosen_classses: string[] = [];
-		const llm_response = chatCompletion.choices[0].message.content
+	process_headings_from_llm_response(llm_response: string | null) {
 		// alert notice the class
 		// split classes by ", " or newline
+		let chosen_classses: string[] = []
 		if (llm_response == null || llm_response.length == 0) {
 			chosen_classses = []
 		} else if (llm_response.includes("\n")) {
@@ -278,11 +267,43 @@ export default class TextMoverPlugin extends Plugin {
 		// strip non alphabetic characters
 		chosen_classses = chosen_classses.map((item: string) => item.trim().replace(/[^a-zA-Z /]/g, '').trim())
 		console.log(chosen_classses);
-		//sort heading by chosen_classes
-		headings.sort((a, b) => {
-			return -(chosen_classses.indexOf(a.heading) - chosen_classses.indexOf(b.heading));
-		})
-		return headings
+		return chosen_classses
+	}
+
+	async sort_headings_via_llm(headings: Heading[], selection = "", editor: Editor, callback: {
+		(): void;
+		(arg0: Heading[], arg1: string, arg2: Editor): void;
+	}) {
+		if (!this.settings.openAIapiKey) {
+			new Notice("OpenAI API key not set in the plugin settings. Returning default headings.")
+			callback(headings, selection, editor)
+			return
+		}
+		const heading_str = headings.map(heading => heading.heading).join(", ")
+		const prompt = "For the text below, suggest top3 classes from one of the following classes(no fluff, no explaination, no numbering just the classes): \n" +
+			"```\n " +
+			"classes:" + heading_str + "\n" +
+			"text: " + selection
+		// api post call to openai
+		await this.llm_client.chat.completions.create({
+			messages: [{role: 'user', content: prompt}],
+			model: this.settings.modelName,
+		}).then(
+			(response) => {
+				const llm_response = response.choices[0].message.content
+				const chosen_classses = this.process_headings_from_llm_response(llm_response)
+				headings.sort((a, b) => {
+					return -(chosen_classses.indexOf(a.heading) - chosen_classses.indexOf(b.heading));
+				})
+				// return headings
+				callback(headings, selection, editor)
+			},
+			(error) => {
+				// console.log("c2")
+				new Notice("Error: " + error.message)
+				callback(headings, selection, editor)
+			}
+		);
 	}
 
 	async sort_headings_via_bayesian(headings: Heading[], training_instances: object[], selection = "") {
@@ -446,7 +467,15 @@ export default class TextMoverPlugin extends Plugin {
 
 		// sort headings via LLM call
 		if (this.settings.classifier == "llm") {
-			headings = await this.sort_headings_via_llm(headings, selection)
+			await this.sort_headings_via_llm(headings, selection, editor, () => {
+				const hmodal = new HeadingSuggestionModal(this.app, headings, (result) => {
+						this.modal_submit_callback(result, editor)
+					}
+				);
+				hmodal.setPlaceholder(selection);
+				hmodal.open()
+			})
+			return
 		} else if (this.settings.classifier == "nbc") {
 			const training_instances = this.getTrainingInstancesFromFile(editor, file)
 			headings = await this.sort_headings_via_bayesian(headings, training_instances, selection)
@@ -580,7 +609,7 @@ class TextMoverSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.openAIapiKey = value;
 					await this.plugin.saveSettings();
-					if (this.plugin.settings.classifier != "llm") {
+					if (this.plugin.settings.classifier == "llm") {
 						this.plugin.build_api();
 					}
 				}),
